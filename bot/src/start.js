@@ -7,6 +7,8 @@ const loadShiritoriForeverChannels = require('./discord/shiritori_forever_helper
 const canvasInit = require('./common/canvas_init.js');
 const Bunyan = require('bunyan');
 const StackdriverBunyan = require('@google-cloud/logging-bunyan').LoggingBunyan;
+const migrate = require('./migrations.js');
+const MongoStoragePlugin = require('monochrome-bot/plugins/storage_mongo/index.js');
 
 const { ConsoleLogger } = Monochrome;
 
@@ -14,6 +16,11 @@ const GCLOUD_KEY_PATH = path.join(__dirname, '..', '..', 'config', 'gcloud_key.j
 const hasGCloudKey = fs.existsSync(GCLOUD_KEY_PATH);
 
 const { apiKeys } = config;
+const storage = MongoStoragePlugin.createNewClient(
+  `mongodb://${process.env.MONGO_HOST || 'localhost:27017'}`,
+  'kotoba',
+  'monochrome_data',
+);
 
 canvasInit();
 
@@ -40,8 +47,6 @@ function createBot() {
   const commandsDirectoryPath = path.join(__dirname, 'discord_commands');
   const messageProcessorsDirectoryPath = path.join(__dirname, 'discord_message_processors');
   const settingsFilePath = path.join(__dirname, 'bot_settings.js');
-  const persistenceDirectoryPath = path.join(__dirname, '..', 'data', 'monochrome-persistence');
-  const storage = new Monochrome.Plugins.FPersist(persistenceDirectoryPath);
 
   const options = {
     prefixes: ['k!'],
@@ -134,5 +139,10 @@ const monochrome = createBot();
 
 checkApiKeys(monochrome);
 saveGlobals(monochrome);
-monochrome.connect();
-loadShiritoriForeverChannels(monochrome);
+
+migrate(monochrome.getLogger(), storage)
+  .catch(() => {})
+  .then(() => {
+    monochrome.connect();
+    loadShiritoriForeverChannels(monochrome);
+  });
