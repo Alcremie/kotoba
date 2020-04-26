@@ -128,7 +128,33 @@ async function migrateUserSettings(logger, mongoPersistence) {
     return logger.info({ detail: 'User settings migrated.' });
   } catch (err) {
     return logger.error({
-      detail: 'ERROR MIGRATING SERVER SETTINGS',
+      detail: 'ERROR MIGRATING SHIRITORI STATE',
+      err,
+    });
+  }
+}
+
+async function migrateShiritoriChannels(logger, mongoPersistence) {
+  try {
+    const allFPersistKeys = await getAllKeys();
+    const shiritoriChannelKeys = allFPersistKeys.filter(k => k.startsWith('shiritoriChannelDiscord_'))
+
+    if (shiritoriChannelKeys.length === 0) {
+      return logger.info({ detail: 'Skipping shiritori state migration. It appears to have already been completed.' });
+    }
+
+    logger.info({ detail: 'Migrating shiritori state.' });
+
+    await Promise.all(shiritoriChannelKeys.map(async (shiritoriChannelKey) => {
+      const shiritoriData = await monochromePersistence.getItem(shiritoriChannelKey);
+      await mongoPersistence.setValue(shiritoriChannelKey, shiritoriData);
+      await monochromePersistence.deleteItem(shiritoriChannelKey);
+    }));
+
+    return logger.info({ detail: 'Shiritori state migrated.' });
+  } catch (err) {
+    return logger.error({
+      detail: 'ERROR MIGRATING SHIRITORI STATE',
       err,
     });
   }
@@ -137,6 +163,7 @@ async function migrateUserSettings(logger, mongoPersistence) {
 async function migrate(logger, mongoPersistence) {
   await migrateServerSettings(logger, mongoPersistence);
   await migrateUserSettings(logger, mongoPersistence);
+  await migrateShiritoriChannels(logger, mongoPersistence);
 }
 
 module.exports = migrate;
